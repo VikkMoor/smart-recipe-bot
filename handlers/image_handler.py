@@ -3,6 +3,7 @@ from telegram.ext import ContextTypes
 
 from services.openai_service import extract_ingredients_from_image
 from logger import log_info, log_error
+from services.recipe_service import generate_recipe
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -26,12 +27,25 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         log_info(f"File downloaded: {file_id}")
 
         ingredients = extract_ingredients_from_image(image_bytes)
+        recipe = generate_recipe(ingredients)
 
         log_info(f"Ingredients: {ingredients}")
 
-        await update.message.reply_text(
-            f"Найдены ингредиенты:\n\n{', '.join(ingredients)}"
+        steps = "\n".join(
+            [f"{i + 1}. {step}" for i, step in enumerate(recipe["steps"])]
         )
+
+        message_text = f"""
+        🍽 {recipe["title"]}
+
+        ⏱ Время: {recipe["time"]}
+
+        👨‍🍳 Шаги:
+
+        {steps}
+        """
+
+        await update.message.reply_text(message_text)
 
         log_info("Success processing image")
 
