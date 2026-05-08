@@ -31,11 +31,17 @@ def generate_recipe(ingredients: list[str]):
 
 Предложи ОДИН простой рецепт.
 
+Используй только часть ингредиентов,
+которые действительно нужны для рецепта.
+
 Верни ТОЛЬКО JSON:
 
 {{
   "title": "string",
   "time": "string",
+  "used_ingredients": [
+    "string"
+  ],
   "steps": [
     "string"
   ]
@@ -48,3 +54,10 @@ def generate_recipe(ingredients: list[str]):
     text = response.output_text
 
     return extract_json(text)
+
+
+def generate_dish_image_prompt(recipe: dict):
+    return f"""
+A realistic food photo of {recipe['title']}.
+Professional food photography, soft natural lighting, high detail, appetizing presentation.
+"""
