@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from config import client
@@ -8,6 +8,8 @@ from services.recipe_service import (
     generate_recipe,
     generate_dish_image_prompt,
 )
+
+import base64
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -25,47 +27,44 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             log_error("Unknown file type")
 
-            await update.message.reply_text(
-                "Не удалось прочитать файл"
-            )
-
+            await update.message.reply_text("Не удалось прочитать файл")
             return
 
         file = await context.bot.get_file(file_id)
-
         image_bytes = await file.download_as_bytearray()
 
         log_info(f"File downloaded: {file_id}")
 
-        # Извлечение ингредиентов
         ingredients = extract_ingredients_from_image(image_bytes)
-
-        log_info(f"Ingredients: {ingredients}")
-
-        # Генерация рецепта
         recipe = generate_recipe(ingredients)
+
+        # сохраняем состояние для кнопок
+        context.user_data["ingredients"] = ingredients
+        context.user_data["last_recipe"] = recipe
 
         used_ingredients = recipe["used_ingredients"]
 
-        # Форматирование шагов
         steps = "\n".join(
-            [
-                f"{i + 1}. {step}"
-                for i, step in enumerate(recipe["steps"])
-            ]
+            [f"{i + 1}. {step}" for i, step in enumerate(recipe["steps"])]
         )
 
-        # Всё, что найдено на изображении
         available_ingredients = "\n".join(
             [f"• {ingredient}" for ingredient in ingredients]
         )
 
-        # Только ингредиенты рецепта
         recipe_ingredients = "\n".join(
             [f"• {ingredient}" for ingredient in used_ingredients]
         )
 
-        # Текст ответа
+        keyboard = [
+            [
+                InlineKeyboardButton("🍳 Другой рецепт", callback_data="another_recipe"),
+                InlineKeyboardButton("⚡ Быстрый рецепт", callback_data="fast_recipe"),
+            ]
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
         message_text = f"""
 🛍 У вас есть:
 {available_ingredients}
@@ -81,10 +80,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 {steps}
 """
 
-        # Отправка текста
-        await update.message.reply_text(message_text)
+        await update.message.reply_text(
+            message_text,
+            reply_markup=reply_markup
+        )
 
-        # Генерация изображения блюда
         image_prompt = generate_dish_image_prompt(recipe)
 
         image_response = client.images.generate(
@@ -94,12 +94,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         image_base64 = image_response.data[0].b64_json
-
-        import base64
-
         image_bytes = base64.b64decode(image_base64)
 
-        # Отправка изображения
         await update.message.reply_photo(photo=image_bytes)
 
         log_info("Success processing image")
@@ -107,6 +103,4 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log_error(f"ERROR in handle_photo: {str(e)}")
 
-        await update.message.reply_text(
-            "Ошибка обработки изображения"
-        )
+        await update.message.reply_text("Ошибка обработки изображения")

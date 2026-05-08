@@ -1,4 +1,4 @@
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from config import client
@@ -8,47 +8,50 @@ from services.recipe_service import (
     generate_dish_image_prompt,
 )
 
+import base64
 
-async def handle_message(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_text = update.message.text
 
         log_info(f"TEXT RECEIVED: {user_text}")
 
-        # Превращаем текст в список ингредиентов
         ingredients = [
-            ingredient.strip()
-            for ingredient in user_text.split(",")
-            if ingredient.strip()
+            i.strip()
+            for i in user_text.split(",")
+            if i.strip()
         ]
 
-        # Генерация рецепта
         recipe = generate_recipe(ingredients)
+
+        # сохраняем состояние для кнопок
+        context.user_data["ingredients"] = ingredients
+        context.user_data["last_recipe"] = recipe
 
         used_ingredients = recipe["used_ingredients"]
 
-        # Форматирование шагов
         steps = "\n".join(
-            [
-                f"{i + 1}. {step}"
-                for i, step in enumerate(recipe["steps"])
-            ]
+            [f"{i + 1}. {step}" for i, step in enumerate(recipe["steps"])]
         )
 
-        # Всё, что есть
         available_ingredients = "\n".join(
             [f"• {ingredient}" for ingredient in ingredients]
         )
 
-        # Используемые ингредиенты
         recipe_ingredients = "\n".join(
             [f"• {ingredient}" for ingredient in used_ingredients]
         )
 
-        # Текст ответа
+        keyboard = [
+            [
+                InlineKeyboardButton("🍳 Другой рецепт", callback_data="another_recipe"),
+                InlineKeyboardButton("⚡ Быстрый рецепт", callback_data="fast_recipe"),
+            ]
+        ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
         message_text = f"""
 🛍 У вас есть:
 {available_ingredients}
@@ -64,9 +67,11 @@ async def handle_message(
 {steps}
 """
 
-        await update.message.reply_text(message_text)
+        await update.message.reply_text(
+            message_text,
+            reply_markup=reply_markup
+        )
 
-        # Генерация картинки
         image_prompt = generate_dish_image_prompt(recipe)
 
         image_response = client.images.generate(
@@ -76,9 +81,6 @@ async def handle_message(
         )
 
         image_base64 = image_response.data[0].b64_json
-
-        import base64
-
         image_bytes = base64.b64decode(image_base64)
 
         await update.message.reply_photo(photo=image_bytes)
@@ -88,6 +90,4 @@ async def handle_message(
     except Exception as e:
         log_error(f"TEXT HANDLER ERROR: {str(e)}")
 
-        await update.message.reply_text(
-            "Ошибка обработки текста"
-        )
+        await update.message.reply_text("Ошибка обработки текста")
