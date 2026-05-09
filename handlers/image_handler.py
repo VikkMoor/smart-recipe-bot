@@ -18,6 +18,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         message = update.message
 
+        language = update.effective_user.language_code or "ru"
+
         if message.photo:
             file_id = message.photo[-1].file_id
 
@@ -27,18 +29,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             log_error("Unknown file type")
 
-            await update.message.reply_text("Не удалось прочитать файл")
+            await update.message.reply_text(
+                "Не удалось прочитать файл"
+            )
+
             return
 
         file = await context.bot.get_file(file_id)
+
         image_bytes = await file.download_as_bytearray()
 
-        log_info(f"File downloaded: {file_id}")
-
         ingredients = extract_ingredients_from_image(image_bytes)
-        recipe = generate_recipe(ingredients)
 
-        # сохраняем состояние для кнопок
+        recipe = generate_recipe(
+            ingredients,
+            language=language
+        )
+
         context.user_data["ingredients"] = ingredients
         context.user_data["last_recipe"] = recipe
 
@@ -49,17 +56,23 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         available_ingredients = "\n".join(
-            [f"• {ingredient}" for ingredient in ingredients]
+            [f"• {i}" for i in ingredients]
         )
 
         recipe_ingredients = "\n".join(
-            [f"• {ingredient}" for ingredient in used_ingredients]
+            [f"• {i}" for i in used_ingredients]
         )
 
         keyboard = [
             [
-                InlineKeyboardButton("🍳 Другой рецепт", callback_data="another_recipe"),
-                InlineKeyboardButton("⚡ Быстрый рецепт", callback_data="fast_recipe"),
+                InlineKeyboardButton(
+                    "🍳 Другой рецепт",
+                    callback_data="another_recipe"
+                ),
+                InlineKeyboardButton(
+                    "⚡ Быстрый рецепт",
+                    callback_data="fast_recipe"
+                ),
             ]
         ]
 
@@ -90,10 +103,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_response = client.images.generate(
             model="gpt-image-1",
             prompt=image_prompt,
-            size="1024x1024",
+            size="auto",
         )
 
         image_base64 = image_response.data[0].b64_json
+
         image_bytes = base64.b64decode(image_base64)
 
         await update.message.reply_photo(photo=image_bytes)
@@ -103,4 +117,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log_error(f"ERROR in handle_photo: {str(e)}")
 
-        await update.message.reply_text("Ошибка обработки изображения")
+        await update.message.reply_text(
+            "Ошибка обработки изображения"
+        )

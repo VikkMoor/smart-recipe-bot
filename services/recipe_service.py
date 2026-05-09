@@ -16,7 +16,10 @@ def extract_json(text: str):
     return json.loads(match.group())
 
 
-def generate_recipe(ingredients: list[str]):
+def generate_recipe(
+    ingredients: list[str],
+    language: str = "ru"
+):
 
     ingredients_text = ", ".join(ingredients)
 
@@ -24,6 +27,8 @@ def generate_recipe(ingredients: list[str]):
         model="gpt-4.1-mini",
         input=f"""
 Ты кулинарный ассистент.
+
+Отвечай на языке: {language}
 
 У пользователя есть ингредиенты:
 
@@ -57,6 +62,7 @@ def generate_recipe(ingredients: list[str]):
 
 
 def generate_dish_image_prompt(recipe: dict):
+
     return f"""
 A realistic food photo of {recipe['title']}.
 Professional food photography, soft natural lighting, high detail, appetizing presentation.

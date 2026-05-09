@@ -15,6 +15,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         user_text = update.message.text
 
+        language = update.effective_user.language_code or "ru"
+
         log_info(f"TEXT RECEIVED: {user_text}")
 
         ingredients = [
@@ -23,9 +25,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if i.strip()
         ]
 
-        recipe = generate_recipe(ingredients)
+        recipe = generate_recipe(
+            ingredients,
+            language=language
+        )
 
-        # сохраняем состояние для кнопок
         context.user_data["ingredients"] = ingredients
         context.user_data["last_recipe"] = recipe
 
@@ -36,17 +40,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         available_ingredients = "\n".join(
-            [f"• {ingredient}" for ingredient in ingredients]
+            [f"• {i}" for i in ingredients]
         )
 
         recipe_ingredients = "\n".join(
-            [f"• {ingredient}" for ingredient in used_ingredients]
+            [f"• {i}" for i in used_ingredients]
         )
 
         keyboard = [
             [
-                InlineKeyboardButton("🍳 Другой рецепт", callback_data="another_recipe"),
-                InlineKeyboardButton("⚡ Быстрый рецепт", callback_data="fast_recipe"),
+                InlineKeyboardButton(
+                    "🍳 Другой рецепт",
+                    callback_data="another_recipe"
+                ),
+                InlineKeyboardButton(
+                    "⚡ Быстрый рецепт",
+                    callback_data="fast_recipe"
+                ),
             ]
         ]
 
@@ -77,10 +87,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         image_response = client.images.generate(
             model="gpt-image-1",
             prompt=image_prompt,
-            size="1024x1024",
+            size="auto",
         )
 
         image_base64 = image_response.data[0].b64_json
+
         image_bytes = base64.b64decode(image_base64)
 
         await update.message.reply_photo(photo=image_bytes)
@@ -90,4 +101,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         log_error(f"TEXT HANDLER ERROR: {str(e)}")
 
-        await update.message.reply_text("Ошибка обработки текста")
+        await update.message.reply_text(
+            "Ошибка обработки текста"
+        )
